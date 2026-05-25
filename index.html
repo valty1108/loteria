@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lotería Mexicana Multijugador</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f7d6e0; text-align: center; margin: 0; padding: 20px; }
+        h1 { color: #d81b60; }
+        .setup-section { background: white; padding: 20px; border-radius: 10px; display: inline-block; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .game-layout { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; margin-top: 20px; }
+        .deck-section, .board-section { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .current-card { width: 160px; height: 240px; border: 4px solid #333; border-radius: 10px; margin: 15px auto; background-color: #e3fafc; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; box-sizing: border-box; }
+        .current-card .emoji { font-size: 70px; margin: auto; }
+        .current-card .name { font-weight: bold; font-size: 20px; text-transform: uppercase; }
+        .grid { display: grid; grid-template-columns: repeat(4, 90px); grid-template-rows: repeat(4, 120px); gap: 8px; background-color: #ffb3c6; padding: 10px; border-radius: 8px; }
+        .cell { background: #fff; border: 2px solid #555; border-radius: 5px; display: flex; flex-direction: column; justify-content: space-between; padding: 5px; cursor: pointer; position: relative; user-select: none; }
+        .cell .mini-emoji { font-size: 30px; margin: auto; }
+        .cell .mini-name { font-size: 10px; font-weight: bold; text-align: center; }
+        .cell.marked::after { content: '🫘'; font-size: 35px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        button { background-color: #e91e63; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 25px; cursor: pointer; margin: 5px; }
+        button:hover { background-color: #c2185b; }
+    </style>
+</head>
+<body>
+
+    <h1>🇲🇽 Lotería Mexicana En Línea 🇲🇽</h1>
+
+    <div class="setup-section" id="setup">
+        <input type="text" id="username" placeholder="Tu Nombre" style="padding: 10px; font-size: 16px;">
+        <br><br>
+        <button onclick="entrarComo('jugador')">Jugar con Tabla</button>
+        <button onclick="entrarComo('cantor')" style="background-color: #3f51b5;">Ser el Cantor 🎤</button>
+    </div>
+
+    <div class="game-layout" id="gameZone" style="display: none;">
+        
+        <div class="deck-section">
+            <h3 id="roleTitle">Carta en la Mesa</h3>
+            <div class="current-card">
+                <div class="emoji" id="deckEmoji">🎪</div>
+                <div class="name" id="deckName">¡Esperando!</div>
+            </div>
+            <button id="btnSiguiente" onclick="sacarCarta()" style="display: none;">Siguiente Carta</button>
+        </div>
+
+        <div class="board-section" id="playerSection" style="display: none;">
+            <h3>Tu Tabla</h3>
+            <div class="grid" id="playerBoard"></div>
+            <br>
+            <button onclick="gritarLoteria()" style="background-color: #4caf50; font-size: 20px;">¡¡LOTERÍA!! 🏆</button>
+        </div>
+    </div>
+
+<script>
+    // Conectamos con el servidor que creamos en el Paso 1
+    const socket = io();
+    let miNombre = "";
+    let miRol = "";
+
+    const cartasData = [
+        { id: 1, name: "El Gallo", emoji: "🐓" }, { id: 2, name: "El Diablito", emoji: "😈" },
+        { id: 3, name: "La Dama", emoji: "💃" }, { id: 4, name: "El Catrín", emoji: "🤵" },
+        { id: 5, name: "El Paraguas", emoji: "🌂" }, { id: 6, name: "La Sirena", emoji: "🧜‍♀️" },
+        { id: 7, name: "La Escalera", emoji: "🪜" }, { id: 8, name: "La Botella", emoji: "🍾" },
+        { id: 9, name: "El Barril", emoji: "🛢️" }, { id: 11, name: "El Melón", emoji: "🍈" },
+        { id: 13, name: "El Gorrito", emoji: "🤠" }, { id: 14, name: "La Muerte", emoji: "💀" },
+        { id: 16, name: "La Bandera", emoji: "🇲🇽" }, { id: 21, name: "Mano", emoji: "✋" },
+        { id: 22, name: "La Bota", emoji: "🥾" }, { id: 23, name: "El Camello", emoji: "🐪" }
+    ];
+
+    let barajaHost = [...cartasData];
+    let indiceBaraja = 0;
+
+    function entrarComo(rol) {
+        miNombre = document.getElementById('username').value.trim();
+        if(!miNombre) { alert("Por favor pon tu nombre"); return; }
+        
+        miRol = rol;
+        document.getElementById('setup').style.display = 'none';
+        document.getElementById('gameZone').style.display = 'flex';
+
+        if(rol === 'cantor') {
+            document.getElementById('roleTitle').innerText = "Eres el Cantor 🎤";
+            document.getElementById('btnSiguiente').style.display = 'inline-block';
+            barajaHost = barajaHost.sort(() => Math.random() - 0.5);
+        } else {
+            document.getElementById('playerSection').style.display = 'block';
+            generarTabla();
+        }
+    }
+
+    // Lógica del Cantor: Saca carta y le avisa al servidor
+    function sacarCarta() {
+        if (indiceBaraja >= barajaHost.length) {
+            alert("Terminó la baraja. Mezclando de nuevo...");
+            barajaHost = barajaHost.sort(() => Math.random() - 0.5);
+            indiceBaraja = 0;
+        }
+        const carta = barajaHost[indiceBaraja];
+        indiceBaraja++;
+        
+        // Enviamos la carta al servidor
+        socket.emit('cartaCantada', carta);
+    }
+
+    function generarTabla() {
+        const cartasTabla = [...cartasData].sort(() => Math.random() - 0.5);
+        const boardContainer = document.getElementById('playerBoard');
+        boardContainer.innerHTML = '';
+
+        cartasTabla.forEach(carta => {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.innerHTML = `<div class="mini-emoji">${carta.emoji}</div><div class="mini-name">${carta.name}</div>`;
+            cell.onclick = function() { this.classList.toggle('marked'); };
+            boardContainer.appendChild(cell);
+        });
+    }
+
+    function gritarLoteria() {
+        socket.emit('gritarLoteria', miNombre);
+    }
+
+    // --- ESCUCHAR AL SERVIDOR EN TIEMPO REAL ---
+    
+    // Todos los jugadores reciben la carta que va corriendo
+    socket.on('actualizarCarta', (carta) => {
+        document.getElementById('deckEmoji').innerText = carta.emoji;
+        document.getElementById('deckName').innerText = carta.name;
+    });
+
+    // Cuando alguien gana, a todos les sale la alerta de quién fue
+    socket.on('anuncioGanador', (nombre) => {
+        alert(`🎉 ¡¡¡ LOTERÍA !!! 🎉\n${nombre} dice que ya llenó su tabla.`);
+    });
+</script>
+</body>
+</html>
