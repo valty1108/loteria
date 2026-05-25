@@ -14,7 +14,15 @@
         .current-card { width: 160px; height: 240px; border: 4px solid #333; border-radius: 10px; margin: 15px auto; background-color: #e3fafc; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; box-sizing: border-box; }
         .current-card .emoji { font-size: 70px; margin: auto; }
         .current-card .name { font-weight: bold; font-size: 20px; text-transform: uppercase; }
-        .grid { display: grid; grid-template-columns: repeat(4, 90px); grid-template-rows: repeat(4, 120px); gap: 8px; background-color: #ffb3c6; padding: 10px; border-radius: 8px; }
+        .grid { 
+    display: grid; 
+    grid-template-columns: repeat(3, 100px); /* 3 columnas un poco más anchas */
+    grid-template-rows: repeat(3, 135px);    /* 3 filas */
+    gap: 10px; 
+    background-color: #ffb3c6; 
+    padding: 12px; 
+    border-radius: 8px; 
+}
         .cell { background: #fff; border: 2px solid #555; border-radius: 5px; display: flex; flex-direction: column; justify-content: space-between; padding: 5px; cursor: pointer; position: relative; user-select: none; }
         .cell .mini-emoji { font-size: 30px; margin: auto; }
         .cell .mini-name { font-size: 10px; font-weight: bold; text-align: center; }
@@ -106,18 +114,23 @@
     }
 
     function generarTabla() {
-        const cartasTabla = [...cartasData].sort(() => Math.random() - 0.5);
-        const boardContainer = document.getElementById('playerBoard');
-        boardContainer.innerHTML = '';
+    // 1. Mezclamos todas las cartas disponibles aleatoriamente
+    const cartasMezcladas = [...cartasData].sort(() => Math.random() - 0.5);
+    
+    // 2. Con .slice(0, 9) tomamos ÚNICAMENTE las primeras 9 cartas para la tabla 3x3
+    const cartasTabla = cartasMezcladas.slice(0, 9);
+    
+    const boardContainer = document.getElementById('playerBoard');
+    boardContainer.innerHTML = '';
 
-        cartasTabla.forEach(carta => {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.innerHTML = `<div class="mini-emoji">${carta.emoji}</div><div class="mini-name">${carta.name}</div>`;
-            cell.onclick = function() { this.classList.toggle('marked'); };
-            boardContainer.appendChild(cell);
-        });
-    }
+    cartasTabla.forEach(carta => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.innerHTML = `<div class="mini-emoji">${carta.emoji}</div><div class="mini-name">${carta.name}</div>`;
+        cell.onclick = function() { this.classList.toggle('marked'); };
+        boardContainer.appendChild(cell);
+    });
+}
 
     function gritarLoteria() {
         socket.emit('gritarLoteria', miNombre);
